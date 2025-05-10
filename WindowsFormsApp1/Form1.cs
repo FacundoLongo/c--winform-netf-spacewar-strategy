@@ -3,27 +3,30 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
 using System.Windows.Forms;
-using BE;
-using BLL;
+using BLL;  
+using BE;   
 
 namespace WindowsFormsApp1
 {
     public partial class Form1 : Form
     {
-        //---------------- parámetros visuales ----------------
+        //---------------- parámetros gráficos ----------------
         private const int Lanes = 5;
-        private const int SpawnInterval = 1500;   // ms
-        private const int EnemyPixelVel = 4;      // px/tick
+        private const int SpawnInterval = 1500;  // ms
+        private const int EnemyPixelVel = 4;     // px / tick
         private const int BulletPixelVel = 15;
         private const int TotalKm = 300;
 
         //---------------- motor ----------------
-        private readonly GameEngine _engine = new GameEngine();   
-        private string _playerNick;
+        private readonly GameEngine _engine = new GameEngine();
+        private string _playerNick = "Jugador";
 
-        //---------------- sprites UI ----------------
-        private readonly Dictionary<int, PictureBox> _enemySprites = new Dictionary<int, PictureBox>();
-        private readonly List<PictureBox> _bullets = new List<PictureBox>();
+        //---------------- sprites ----------------
+        private readonly Dictionary<int, PictureBox> _enemySprites =
+            new Dictionary<int, PictureBox>();      // id → sprite
+
+        private PictureBox _bullet;                 // solo UNA bala
+        private int _bulletTargetId;
 
         //---------------- estado UI ----------------
         private readonly Random _rnd = new Random();
@@ -33,14 +36,16 @@ namespace WindowsFormsApp1
 
         public Form1() => InitializeComponent();
 
-        //================== LOAD ==================
+        //======================================================
+        //                      LOAD
+        //======================================================
         private void Form1_Load(object sender, EventArgs e)
         {
-            // 1) Nickname
+            // 1) jugador
             _playerNick = AskNick();
-            _engine.StartGame(_playerNick);        
+            _engine.StartGame(_playerNick);
 
-            // 2) Sprites base
+            // 2) sprite base
             picBase.Image = Properties.Resources.ship_friend;
             picBase.BackColor = Color.Transparent;
 
@@ -54,17 +59,19 @@ namespace WindowsFormsApp1
             _engine.StateChanged += Redraw;
             UpdateBasePos();
 
-            // 3) Timers
+            // 3) timers
             tmrMove.Interval = 25;
             tmrSpawn.Interval = SpawnInterval;
             tmrMove.Start();
             tmrSpawn.Start();
         }
 
-
+        //======================================================
+        //              Diálogo para nombre de jugador
+        //======================================================
         private string AskNick()
         {
-            using (var dlg = new Form())
+            using (Form dlg = new Form())
             {
                 dlg.Text = "Jugador";
                 dlg.FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -72,15 +79,9 @@ namespace WindowsFormsApp1
                 dlg.ClientSize = new Size(260, 130);
                 dlg.MinimizeBox = dlg.MaximizeBox = false;
 
-                var lbl = new Label
-                {
-                    Left = 10,
-                    Top = 15,
-                    Width = 240,
-                    Text = "Ingresa tu nombre:"
-                };
-                var txt = new TextBox { Left = 10, Top = 45, Width = 240 };
-                var ok = new Button
+                Label lbl = new Label { Left = 10, Top = 15, Width = 240, Text = "Ingresa tu nombre:" };
+                TextBox txt = new TextBox { Left = 10, Top = 45, Width = 240 };
+                Button ok = new Button
                 {
                     Left = 70,
                     Top = 80,
@@ -92,74 +93,90 @@ namespace WindowsFormsApp1
                 dlg.Controls.AddRange(new Control[] { lbl, txt, ok });
                 dlg.AcceptButton = ok;
 
-                return dlg.ShowDialog(this) == DialogResult.OK &&
-                       !string.IsNullOrWhiteSpace(txt.Text)
-                       ? txt.Text.Trim()
-                       : "Jugador";
+                return dlg.ShowDialog(this) == DialogResult.OK && !string.IsNullOrWhiteSpace(txt.Text)
+                     ? txt.Text.Trim()
+                     : "Jugador";
             }
         }
 
-        //================== SPAWNER ==================
+        //======================================================
+        //                  SPAWNER
+        //======================================================
         private void tmrSpawn_Tick(object sender, EventArgs e)
         {
-            int lane = _rnd.Next(Lanes);
-            _engine.Spawn(lane, TotalKm);           
+            _engine.Spawn(_rnd.Next(Lanes), TotalKm);
         }
 
-        //================== LOOP ==================
+        //======================================================
+        //                  LOOP PRINCIPAL
+        //======================================================
         private void tmrMove_Tick(object sender, EventArgs e)
         {
-            _engine.Tick(EnemyPixelVel);           
-            MoveBullets();                         
+            _engine.Tick(EnemyPixelVel);
+            MoveBullet();
         }
 
-        //================== INPUT ==================
+        //======================================================
+        //                      INPUT
+        //======================================================
         private void Form1_KeyDown(object sender, KeyEventArgs e)
         {
             if ((e.KeyCode == Keys.Up || e.KeyCode == Keys.W) && _playerLane > 0)
-            { _playerLane--; UpdateBasePos(); }
-
+            {
+                _playerLane--; UpdateBasePos();
+            }
             else if ((e.KeyCode == Keys.Down || e.KeyCode == Keys.S) && _playerLane < Lanes - 1)
-            { _playerLane++; UpdateBasePos(); }
-
-            else if (e.KeyCode == Keys.Space) Fire();
+            {
+                _playerLane++; UpdateBasePos();
+            }
+            else if (e.KeyCode == Keys.Space)
+            {
+                Fire();
+            }
         }
         private void btnFire_Click(object s, EventArgs e) => Fire();
 
-        //================== DISPARO ==================
+        //======================================================
+        //                      DISPARO
+        //======================================================
         private void Fire()
         {
-            var shot = _engine.Fire(_playerLane);
-            if (shot == null) return;               // nada en carril
+            if (_bullet != null) return;                     // ya hay bala en vuelo
 
-            // bala amarilla (solo visual)
-            var b = new PictureBox
+            Shot shot = _engine.Fire(_playerLane);           // motor decide
+            if (shot == null || shot.Weapon == WeaponType.None) return; // fuera de rango
+
+            _bulletTargetId = shot.Target.Id;
+
+            _bullet = new PictureBox
             {
                 Size = new Size(12, 4),
-                BackColor = Color.Yellow,
-                Tag = _playerLane
+                BackColor = Color.Yellow
             };
-            b.Left = picBase.Right;
-            b.Top = LaneToY(_playerLane) + (_laneH - b.Height) / 2;
-            pnlGame.Controls.Add(b);
-            pnlGame.Controls.SetChildIndex(b, 0);
-            _bullets.Add(b);
+            _bullet.Left = picBase.Right;
+            _bullet.Top = LaneToY(_playerLane) + (_laneH - _bullet.Height) / 2;
+
+            pnlGame.Controls.Add(_bullet);
+            pnlGame.Controls.SetChildIndex(_bullet, 0);
         }
 
-        //================== REDRAW (callback BLL) ==================
+        //======================================================
+        //              REDRAW – callback del motor
+        //======================================================
         private void Redraw()
         {
-            //--- sincroniza sprites enemigos ---
-            foreach (var id in _enemySprites.Keys.Except(_engine.Targets.Select(t => t.Id)).ToList())
+            //---------------- sincroniza sprites enemigos ----------------
+            foreach (int id in _enemySprites.Keys.Except(_engine.Targets.Select(t => t.Id)).ToList())
             {
-                var pb = _enemySprites[id];
-                pnlGame.Controls.Remove(pb);
-                pb.Dispose();
+                pnlGame.Controls.Remove(_enemySprites[id]);
+                _enemySprites[id].Dispose();
                 _enemySprites.Remove(id);
             }
-            foreach (var t in _engine.Targets)
+
+            foreach (Target t in _engine.Targets)
             {
-                if (!_enemySprites.TryGetValue(t.Id, out var pb))
+                PictureBox pb;
+                if (!_enemySprites.TryGetValue(t.Id, out pb))
                 {
                     pb = new PictureBox
                     {
@@ -172,18 +189,36 @@ namespace WindowsFormsApp1
                     pnlGame.Controls.SetChildIndex(pb, 0);
                     _enemySprites.Add(t.Id, pb);
                 }
+
                 pb.Left = picBase.Right + (int)Math.Round(t.DistanceKm / _kmPerPixel);
                 pb.Top = LaneToY(t.Lane) + (_laneH - pb.Height) / 2;
+
+                //---------------- marcado ----------------
+                bool isNearest = t.Lane == _playerLane &&
+                                 Math.Abs(t.DistanceKm - _engine.Targets
+                                                          .Where(x => x.Lane == _playerLane)
+                                                          .Min(x => x.DistanceKm)) < 0.01;
+
+                if (isNearest)
+                {
+                    bool inRange = t.DistanceKm <= 200;
+                    pb.BorderStyle = BorderStyle.FixedSingle;
+                    pb.BackColor = inRange ? Color.Lime : Color.Red;   // ← verde / rojo
+                }
+                else
+                {
+                    pb.BorderStyle = BorderStyle.None;
+                    pb.BackColor = Color.Transparent;
+                }
             }
 
-            //--- HUD ---
+            //---------------- HUD ----------------
             lblLives.Text = $"Vidas: {_engine.Lives}";
             lblScore.Text = $"Aciertos: {_engine.Hits}";
 
-            var nearest = _engine.Targets
-                                 .Where(t => t.Lane == _playerLane)
-                                 .OrderBy(t => t.DistanceKm)
-                                 .FirstOrDefault();
+            Target nearest = _engine.Targets.Where(t => t.Lane == _playerLane)
+                                            .OrderBy(t => t.DistanceKm)
+                                            .FirstOrDefault();
 
             if (nearest == null)
             {
@@ -201,21 +236,23 @@ namespace WindowsFormsApp1
                 lblDistance.Text = $"Distancia: {km:0} km";
             }
 
-            //--- game‑over ---
+            //---------------- GAME OVER ----------------
             if (_engine.Lives <= 0)
             {
-                _engine.EndGame();                   // guarda en BD
+                _engine.EndGame();
                 tmrMove.Stop(); tmrSpawn.Stop();
 
-                if (MessageBox.Show("¡Game Over!\n¿Reiniciar?", "Fin",
-                                    MessageBoxButtons.YesNo, MessageBoxIcon.Question) == DialogResult.Yes)
+                DialogResult res = MessageBox.Show("¡Game Over!\n¿Reiniciar?",
+                                                   "Fin",
+                                                   MessageBoxButtons.YesNo,
+                                                   MessageBoxIcon.Question);
+                if (res == DialogResult.Yes)
                 {
-                    foreach (var s in _enemySprites.Values) s.Dispose();
-                    foreach (var b in _bullets) b.Dispose();
+                    foreach (PictureBox s in _enemySprites.Values) s.Dispose();
                     _enemySprites.Clear();
-                    _bullets.Clear();
+                    _bullet?.Dispose(); _bullet = null;
 
-                    _engine.StartGame(_playerNick);  // nueva sesión
+                    _engine.StartGame(_playerNick);
                     tmrMove.Start(); tmrSpawn.Start();
                 }
                 else
@@ -225,23 +262,44 @@ namespace WindowsFormsApp1
             }
         }
 
-        //================== BULLET MOTION ==================
-        private void MoveBullets()
+        //======================================================
+        //                MOVIMIENTO DE LA BALA
+        //======================================================
+        private void MoveBullet()
         {
-            for (int i = _bullets.Count - 1; i >= 0; i--)
+            if (_bullet == null) return;
+
+            _bullet.Left += BulletPixelVel;
+
+            // impacto
+            PictureBox enemySprite;
+            if (_enemySprites.TryGetValue(_bulletTargetId, out enemySprite) &&
+                _bullet.Bounds.IntersectsWith(enemySprite.Bounds))
             {
-                var b = _bullets[i];
-                b.Left += BulletPixelVel;
-                if (b.Left > pnlGame.Width)
-                {
-                    pnlGame.Controls.Remove(b);
-                    _bullets.RemoveAt(i);
-                    b.Dispose();
-                }
+                _engine.RegisterHit(_bulletTargetId);
+
+                pnlGame.Controls.Remove(enemySprite);
+                enemySprite.Dispose();
+                _enemySprites.Remove(_bulletTargetId);
+
+                pnlGame.Controls.Remove(_bullet);
+                _bullet.Dispose();
+                _bullet = null;
+                return;
+            }
+
+            // fuera de pantalla
+            if (_bullet.Left > pnlGame.Width)
+            {
+                pnlGame.Controls.Remove(_bullet);
+                _bullet.Dispose();
+                _bullet = null;
             }
         }
 
-        //================== HELPERS ==================
+        //======================================================
+        //                       HELPERS
+        //======================================================
         private void UpdateBasePos()
         {
             picBase.Left = 20;
@@ -251,9 +309,12 @@ namespace WindowsFormsApp1
 
         private void pnlGame_Paint(object s, PaintEventArgs e)
         {
-            using (var pen = new Pen(Color.DimGray) { DashStyle = System.Drawing.Drawing2D.DashStyle.Dash })
+            using (Pen pen = new Pen(Color.DimGray)
+            { DashStyle = System.Drawing.Drawing2D.DashStyle.Dash })
+            {
                 for (int i = 0; i <= Lanes; i++)
                     e.Graphics.DrawLine(pen, 0, 20 + i * _laneH, pnlGame.Width, 20 + i * _laneH);
+            }
         }
     }
 }

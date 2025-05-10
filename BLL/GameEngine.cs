@@ -70,11 +70,24 @@ namespace BLL
             if (tgt == null) return null;
 
             _ctx.SelectByDistance(tgt.DistanceKm);
-            var shot = _ctx.Execute(tgt, _sessionId, _shotRepo);
 
-            if (shot.Hit) { _targets.Remove(tgt); Hits++; }
-            StateChanged?.Invoke();
+            if (_ctx.CurrentWeapon == WeaponType.None)
+                return null;
+
+            var shot = _ctx.Execute(tgt, _sessionId, _shotRepo);
             return shot;
         }
+
+
+        public void RegisterHit(int targetId)
+        {
+            var tgt = _targets.FirstOrDefault(t => t.Id == targetId);
+            if (tgt == null) return;
+
+            _targets.Remove(tgt);
+            Hits++;
+            StateChanged?.Invoke();
+        }
+
     }
 }

@@ -39,6 +39,7 @@ namespace BLL
             return shot;
         }
 
+        public WeaponType CurrentWeapon => _current.Type;
     }
 
     internal class NoWeaponStrategy : IWeaponStrategy
