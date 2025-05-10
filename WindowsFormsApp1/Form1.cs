@@ -34,6 +34,13 @@ namespace WindowsFormsApp1
         private int _laneH;
         private double _kmPerPixel;
 
+        // ---- control de pausa ----------------------
+        private bool _paused;
+
+        // ---- high‑score del jugador ---------------
+        private int _hiScore;
+
+
         public Form1() => InitializeComponent();
 
         //======================================================
@@ -58,6 +65,9 @@ namespace WindowsFormsApp1
 
             _engine.StateChanged += Redraw;
             UpdateBasePos();
+
+            _hiScore = _engine.GetHighScore(_playerNick);
+            lblHi.Text = $"High‑score: {_hiScore}";
 
             // 3) timers
             tmrMove.Interval = 25;
@@ -260,6 +270,22 @@ namespace WindowsFormsApp1
                     Close();
                 }
             }
+            _hiScore = Math.Max(_hiScore, _engine.Hits);
+            lblHi.Text = $"High‑score: {_hiScore}";
+        }
+
+        private void btnPause_Click(object sender, EventArgs e)
+        {
+            _paused = !_paused;
+            tmrMove.Enabled = !_paused;
+            tmrSpawn.Enabled = !_paused;
+            btnPause.Text = _paused ? "CONTINUAR" : "PAUSA";
+        }
+
+        private void btnStats_Click(object sender, EventArgs e)
+        {
+            using (var frm = new StatsForm(_engine, _playerNick))
+                frm.ShowDialog(this);
         }
 
         //======================================================

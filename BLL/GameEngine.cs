@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Data;
+using System.Data.SqlClient;
 using BE;
 using DAL;
 
@@ -88,6 +90,14 @@ namespace BLL
             Hits++;
             StateChanged?.Invoke();
         }
+
+        public int GetHighScore(string nick) => _sessionRepo.GetHighScore(nick);
+
+        public (int Games, int Hits, int Shots, double Accuracy, int HighScore)
+               GetPlayerStats(string nick) => _sessionRepo.GetStats(nick);
+
+        public DataTable GetStatsTable() => _sessionRepo.GetStatsTable();
+
 
     }
 }
