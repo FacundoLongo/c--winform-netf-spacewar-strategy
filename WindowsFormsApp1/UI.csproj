@@ -84,13 +84,17 @@
     <None Include="Resources\ship-enemy.png" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="Resources\spr_stars02.png" />
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="Resources\back.png" />
-  </ItemGroup>
-  <ItemGroup>
     <None Include="Resources\ship-friend.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\BE\BE.csproj">
+      <Project>{e7c71720-6463-4e95-ac86-aecef656519c}</Project>
+      <Name>BE</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\BLL\BLL.csproj">
+      <Project>{4a59e673-502c-4a64-934f-aed96fdf01d9}</Project>
+      <Name>BLL</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
