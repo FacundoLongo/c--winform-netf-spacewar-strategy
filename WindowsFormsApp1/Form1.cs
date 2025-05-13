@@ -69,6 +69,8 @@ namespace WindowsFormsApp1
             _hiScore = _engine.GetHighScore(_playerNick);
             lblHi.Text = $"High‑score: {_hiScore}";
 
+            this.ActiveControl = null;
+
             // 3) timers
             tmrMove.Interval = 25;
             tmrSpawn.Interval = SpawnInterval;
@@ -142,6 +144,8 @@ namespace WindowsFormsApp1
             else if (e.KeyCode == Keys.Space)
             {
                 Fire();
+                e.Handled = true;
+                e.SuppressKeyPress = true;
             }
         }
         private void btnFire_Click(object s, EventArgs e) => Fire();
@@ -151,24 +155,25 @@ namespace WindowsFormsApp1
         //======================================================
         private void Fire()
         {
-            if (_bullet != null) return;                     // ya hay bala en vuelo
+            if (_bullet != null) return;
 
-            Shot shot = _engine.Fire(_playerLane);           // motor decide
-            if (shot == null || shot.Weapon == WeaponType.None) return; // fuera de rango
+            if (!_engine.CanFire(_playerLane)) return;
+
+            Shot shot = _engine.TryFire(_playerLane);
 
             _bulletTargetId = shot.Target.Id;
-
             _bullet = new PictureBox
             {
                 Size = new Size(12, 4),
-                BackColor = Color.Yellow
+                BackColor = Color.Yellow,
+                Left = picBase.Right,
+                Top = LaneToY(_playerLane) + (_laneH - 4) / 2
             };
-            _bullet.Left = picBase.Right;
-            _bullet.Top = LaneToY(_playerLane) + (_laneH - _bullet.Height) / 2;
-
             pnlGame.Controls.Add(_bullet);
             pnlGame.Controls.SetChildIndex(_bullet, 0);
         }
+
+
 
         //======================================================
         //              REDRAW – callback del motor
@@ -341,6 +346,16 @@ namespace WindowsFormsApp1
                 for (int i = 0; i <= Lanes; i++)
                     e.Graphics.DrawLine(pen, 0, 20 + i * _laneH, pnlGame.Width, 20 + i * _laneH);
             }
+        }
+
+        protected override bool IsInputKey(Keys keyData)
+        {
+            if (keyData == Keys.Up || keyData == Keys.Down ||
+                keyData == Keys.Left || keyData == Keys.Right)
+            {
+                return true;
+            }
+            return base.IsInputKey(keyData);
         }
     }
 }

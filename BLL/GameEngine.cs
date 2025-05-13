@@ -64,7 +64,19 @@ namespace BLL
             });
         }
 
-        public Shot Fire(int lane)
+        public bool CanFire(int lane)
+        {
+            var tgt = _targets
+                        .Where(t => t.Lane == lane)
+                        .OrderBy(t => t.DistanceKm)
+                        .FirstOrDefault();
+            if (tgt == null) return false;
+
+            _ctx.SelectByDistance(tgt.DistanceKm);
+            return _ctx.CurrentWeapon != WeaponType.None;
+        }
+
+        public Shot TryFire(int lane)
         {
             var tgt = _targets.Where(t => t.Lane == lane)
                               .OrderBy(t => t.DistanceKm)
@@ -72,12 +84,10 @@ namespace BLL
             if (tgt == null) return null;
 
             _ctx.SelectByDistance(tgt.DistanceKm);
-
             if (_ctx.CurrentWeapon == WeaponType.None)
                 return null;
 
-            var shot = _ctx.Execute(tgt, _sessionId, _shotRepo);
-            return shot;
+            return _ctx.Execute(tgt, _sessionId, _shotRepo);
         }
 
 
